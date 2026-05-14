@@ -527,34 +527,26 @@
   @media print {
     @page {
       size: letter portrait;
-      margin: 0.4in;
+      margin: 0;
     }
-    body { background: #fff; }
+    html, body { 
+      width: 8.5in; 
+      height: 11in;
+      background: #fff; 
+      overflow: hidden;
+    }
     .form-panel, .header { display: none !important; }
-    .main { display: block !important; }
-    .ticket-panel { padding: 0 !important; }
+    .main { display: block !important; width: 8.5in !important; }
+    .ticket-panel { padding: 0.25in !important; width: 8.5in !important; box-sizing: border-box !important; }
     .ticket-label { display: none !important; }
     .print-btn, .generate-btn, .export-btn, .ticket-actions { display: none !important; }
-    .ticket { box-shadow: none !important; max-width: 100% !important; }
     .ticket-wrapper { max-width: 100% !important; }
-
-    /* Scale everything to fit one page */
-    .ticket-body { gap: 10px !important; padding: 14px 20px !important; }
-    .ticket-header { padding: 12px 20px !important; }
-    .ticket-banner { padding: 5px 20px !important; font-size: 11px !important; }
-    .ticket-section-header { font-size: 8px !important; margin-bottom: 6px !important; padding-bottom: 3px !important; }
-    .t-value { font-size: 12px !important; padding: 4px 8px !important; }
-    .t-value.highlight { font-size: 13px !important; }
-    .t-value.green { font-size: 14px !important; }
-    .ticket-grid2, .ticket-grid3 { gap: 8px !important; }
-    .material-weight-num { font-size: 24px !important; }
-    .ticket-material-block { padding: 10px 14px !important; }
-    .material-name { font-size: 15px !important; }
-    .pressure-table th, .pressure-table td { padding: 4px 8px !important; font-size: 10px !important; }
-    .ticket-footer { padding: 8px 20px !important; }
-    .ticket-company { font-size: 18px !important; }
-    .ticket-id { font-size: 14px !important; }
-    .ticket-date { font-size: 8px !important; }
+    .ticket { 
+      box-shadow: none !important;
+      transform-origin: top left;
+      transform: scale(var(--print-scale, 1));
+      width: calc(8in / var(--print-scale, 1)) !important;
+    }
   }
 </style>
 </head>
@@ -1324,8 +1316,23 @@ const endRingLookup = {
     document.getElementById('ticket-actions').style.display = 'flex';
   }
 
+  function scaleTicketForPrint() {
+    const ticket = document.querySelector('#ticket-area .ticket');
+    if (!ticket) return;
+    // Page printable area: 8.5in wide, 11in tall, 0.25in padding each side
+    const pageW = 8.0 * 96; // 8in at 96dpi in px
+    const pageH = 10.5 * 96;
+    const ticketH = ticket.scrollHeight;
+    const ticketW = ticket.scrollWidth;
+    const scaleW = pageW / ticketW;
+    const scaleH = pageH / ticketH;
+    const scale = Math.min(scaleW, scaleH, 1); // never scale up
+    document.documentElement.style.setProperty('--print-scale', scale);
+  }
+
   function printTicket() {
-    window.print();
+    scaleTicketForPrint();
+    setTimeout(() => window.print(), 50);
   }
 
   function exportPDF() {
@@ -1333,14 +1340,18 @@ const endRingLookup = {
     const ticketId = window._ticketId || 'Ticket';
     const filename = `${jobNum}_${ticketId}.pdf`;
 
-    // Build a self-contained print window with one-page scaling
-    const ticketHTML = document.getElementById('ticket-area').innerHTML;
-    const styles = Array.from(document.styleSheets)
-      .map(sheet => {
-        try { return Array.from(sheet.cssRules).map(r => r.cssText).join('\n'); }
-        catch(e) { return ''; }
-      }).join('\n');
+    // Compute scale
+    const ticket = document.querySelector('#ticket-area .ticket');
+    let scale = 1;
+    if (ticket) {
+      const pageW = 8.0 * 96;
+      const pageH = 10.5 * 96;
+      const scaleW = pageW / ticket.scrollWidth;
+      const scaleH = pageH / ticket.scrollHeight;
+      scale = Math.min(scaleW, scaleH, 1);
+    }
 
+    const ticketHTML = document.getElementById('ticket-area').innerHTML;
     const win = window.open('', '_blank', 'width=900,height=700');
     win.document.write(`<!DOCTYPE html>
 <html>
@@ -1349,36 +1360,56 @@ const endRingLookup = {
 <title>${filename}</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-${styles}
-@page { size: letter portrait; margin: 0.4in; }
-body { background: #fff; margin: 0; padding: 0; }
-.ticket { box-shadow: none; max-width: 100%; }
-.ticket-body { gap: 10px; padding: 14px 20px; }
-.ticket-header { padding: 12px 20px; }
-.ticket-banner { padding: 5px 20px; font-size: 11px; }
-.ticket-section-header { font-size: 8px; margin-bottom: 6px; padding-bottom: 3px; }
-.t-value { font-size: 12px; padding: 4px 8px; }
-.t-value.highlight { font-size: 13px; }
-.t-value.green { font-size: 14px; }
-.ticket-grid2, .ticket-grid3 { gap: 8px; }
-.material-weight-num { font-size: 24px; }
-.ticket-material-block { padding: 10px 14px; }
-.material-name { font-size: 15px; }
-.pressure-table th, .pressure-table td { padding: 4px 8px; font-size: 10px; }
-.ticket-footer { padding: 8px 20px; }
-.ticket-company { font-size: 18px; }
-.ticket-id { font-size: 14px; }
-.ticket-date { font-size: 8px; }
+:root {
+  --bg: #0f1117; --surface: #181c27; --surface2: #1e2435; --border: #2a3050;
+  --accent: #cc1a1a; --accent2: #e83c3c; --green: #22c55e; --text: #e8eaf0;
+  --muted: #7a8099; --red-field: #2d0a0a; --red-field-border: #cc1a1a;
+}
+@page { size: letter portrait; margin: 0; }
+html, body { margin: 0; padding: 0.25in; background: #fff; font-family: 'IBM Plex Sans', sans-serif; }
+.ticket-wrapper { transform-origin: top left; transform: scale(${scale.toFixed(4)}); width: calc(100% / ${scale.toFixed(4)}); }
+.ticket { box-shadow: none; border-radius: 6px; overflow: hidden; color: #111; background: #fff; }
+.ticket-header { background: #1a1a2e; padding: 20px 28px; display: flex; justify-content: space-between; align-items: flex-start; }
+.ticket-company { font-family: 'Oswald', sans-serif; font-size: 24px; font-weight: 700; letter-spacing: 4px; color: #cc1a1a; text-transform: uppercase; }
+.ticket-subtitle { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 2px; color: #7a8099; margin-top: 3px; text-transform: uppercase; }
+.ticket-id-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 2px; color: #7a8099; text-transform: uppercase; }
+.ticket-id { font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 500; color: #e83c3c; margin-top: 2px; }
+.ticket-date { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #7a8099; margin-top: 4px; }
+.ticket-id-block { text-align: right; }
+.ticket-banner { background: #cc1a1a; padding: 8px 28px; font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #fff; font-weight: 600; }
+.ticket-body { padding: 24px 28px; display: grid; gap: 18px; }
+.ticket-section-header { font-family: 'Oswald', sans-serif; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: #7a8099; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; margin-bottom: 10px; }
+.ticket-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.ticket-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.t-field label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: #888; display: block; margin-bottom: 3px; }
+.t-value { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 500; color: #1a1a2e; background: #f5f7ff; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #cc1a1a; }
+.t-value.highlight { background: #fde8e8; border-left-color: #e83c3c; font-size: 18px; }
+.t-value.green { background: #f0fdf4; border-left-color: #22c55e; color: #166534; font-size: 18px; }
+.ticket-material-block { background: #1a1a2e; border-radius: 6px; padding: 16px 20px; color: #fff; }
+.material-name { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: 2px; color: #e83c3c; display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+.material-weight { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+.material-weight-num { font-family: 'IBM Plex Mono', monospace; font-size: 36px; font-weight: 500; color: #22c55e; line-height: 1; }
+.material-weight-unit { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #7a8099; }
+.material-weight-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #7a8099; margin-top: 2px; }
+.pressure-table { width: 100%; border-collapse: collapse; }
+.pressure-table th { background: #1a1a2e; color: #7a8099; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 7px 10px; text-align: left; }
+.pressure-table td { font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 7px 10px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; }
+.pressure-table tr.highlighted td { background: #fde8e8; font-weight: 600; color: #991111; }
+.pressure-table tr.highlighted td:first-child { border-left: 3px solid #cc1a1a; }
+.ticket-footer { background: #f5f5f5; border-top: 1px solid #e0e0e0; padding: 12px 28px; display: flex; justify-content: space-between; align-items: center; }
+.footer-op { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #888; letter-spacing: 1px; }
+.footer-sig { display: flex; gap: 32px; }
+.sig-line { text-align: center; }
+.sig-underline { width: 100px; border-bottom: 1px solid #999; height: 20px; margin-bottom: 4px; }
+.sig-label { font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: #888; }
 </style>
 </head>
 <body>
-<div class="ticket-wrapper">
-${ticketHTML}
-</div>
+<div class="ticket-wrapper">${ticketHTML}</div>
 <script>
 window.onload = function() {
   window.document.title = '${filename.replace(/'/g, "\\'")}';
-  setTimeout(function() { window.print(); window.close(); }, 500);
+  setTimeout(function() { window.print(); window.close(); }, 600);
 };
 <\/script>
 </body>
